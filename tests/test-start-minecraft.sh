@@ -31,7 +31,7 @@ if ! cmp "$icon_source" "$icon_target"; then
   echo "FAIL: managed server icon was not copied" >&2
   exit 1
 fi
-if [ "$(stat -f '%Lp' "$icon_target" 2>/dev/null || stat -c '%a' "$icon_target")" != 644 ]; then
+if [ "$(stat -c '%a' "$icon_target" 2>/dev/null || stat -f '%Lp' "$icon_target")" != 644 ]; then
   echo "FAIL: managed server icon mode is not 0644" >&2
   exit 1
 fi

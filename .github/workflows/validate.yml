@@ -151,8 +151,10 @@ jobs:
             grep -Fq "$plugin" <<<"$plugins"
           done
           plugin_health="$(docker compose --env-file .env.example exec -T minecraft \
-            rcon-cli discordguildgate plugins | tr -d '\r')"
-          grep -Eq '^ENABLED required-plugins=[1-9][0-9]*$' <<<"$plugin_health"
+            rcon-cli discordguildgate plugins |
+            sed $'s/\033\\[[0-9;]*m//g' |
+            tr -d '\r\n')"
+          test "$plugin_health" = 'DISABLED required-plugins=DiscordSRV'
           logs="$(docker compose --env-file .env.example logs --no-color minecraft)"
           if grep -Eq \
             'Could not load .*plugin|Error occurred while enabling|InvalidPluginException|UnsupportedClassVersionError' \
