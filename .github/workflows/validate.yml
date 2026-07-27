@@ -130,6 +130,10 @@ jobs:
             -e 's/^DISCORD_CHAT_CHANNEL_ID=.*/DISCORD_CHAT_CHANNEL_ID=234567890123456789/' \
             .discordsrv.env
           chmod 600 .discordsrv.env
+          # CI has no Discord bot token, so avoid the live DiscordSRV language command.
+          sed -i \
+            -e 's/^ForcedLanguage:.*/ForcedLanguage: Japanese/' \
+            minecraft/plugins/DiscordSRV/config.yml
           ./scripts/configure-runtime-settings.sh
           docker compose --env-file .env.example restart --no-deps minecraft
           docker compose --env-file .env.example up --wait --no-deps minecraft

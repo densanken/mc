@@ -82,7 +82,7 @@ grep -q '^  Content: "%deathmessage%"$' "$messages"
 grep -q '^  Content: "進捗「%achievement%」を達成しました"$' "$messages"
 grep -q '^DiscordAccountLinked: "Minecraftアカウント（%name%）との連携が完了しました。Minecraftサーバーへ接続し直してください。"$' "$messages"
 grep -q '^DiscordAccountAlreadyLinked: "すでにMinecraftアカウント（%username%）と連携されています。Minecraftサーバーへ接続し直してください。"$' "$messages"
-if [ "$(stat -f '%Lp' "$config" 2>/dev/null || stat -c '%a' "$config")" != 600 ]; then
+if [ "$(stat -c '%a' "$config" 2>/dev/null || stat -f '%Lp' "$config")" != 600 ]; then
   echo "FAIL: DiscordSRV config.yml mode is not 0600" >&2
   exit 1
 fi
