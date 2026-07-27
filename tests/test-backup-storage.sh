@@ -39,6 +39,31 @@ if MC_PROJECT_ROOT="$project" MC_ENV_FILE="$env_file" \
   echo "FAIL: in-project backup root was accepted" >&2
   exit 1
 fi
+ln -s "$project" "$fixture/project-link"
+printf 'BACKUP_ROOT=%s\n' "$fixture/project-link/backups" > "$env_file"
+if MC_PROJECT_ROOT="$project" MC_ENV_FILE="$env_file" \
+    "$root_dir/scripts/backup-root.sh" --create >/dev/null 2>&1; then
+  echo "FAIL: symlinked in-project backup root was accepted" >&2
+  exit 1
+fi
+mkdir -p "$project/backup-parent"
+ln -s "$project/backup-parent" "$fixture/backup-parent-link"
+printf 'BACKUP_ROOT=%s\n' "$fixture/backup-parent-link/backups" > "$env_file"
+if MC_PROJECT_ROOT="$project" MC_ENV_FILE="$env_file" \
+    "$root_dir/scripts/backup-root.sh" --create >/dev/null 2>&1; then
+  echo "FAIL: backup root below a symlinked project directory was accepted" >&2
+  exit 1
+fi
+rm -rf "$external/world"
+ln -s "$project" "$external/world"
+printf 'BACKUP_ROOT=%s\n' "$external" > "$env_file"
+if MC_PROJECT_ROOT="$project" MC_ENV_FILE="$env_file" \
+    "$root_dir/scripts/backup-root.sh" --create >/dev/null 2>&1; then
+  echo "FAIL: symlinked backup subdirectory was accepted" >&2
+  exit 1
+fi
+rm "$external/world"
+mkdir "$external/world"
 printf 'BACKUP_ROOT=%s\n' "$fixture/other/../project/backups" > "$env_file"
 if MC_PROJECT_ROOT="$project" MC_ENV_FILE="$env_file" \
     "$root_dir/scripts/backup-root.sh" --create >/dev/null 2>&1; then

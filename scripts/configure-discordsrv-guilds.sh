@@ -48,6 +48,21 @@ read_setting() {
 ' "$settings_file"
 }
 
+setting_equals() {
+  file="$1"
+  key="$2"
+  expected="$3"
+  awk -v key="$key" -v expected="$expected" '
+    $0 ~ ("^[[:space:]]*" key "[[:space:]]*:") {
+      count++
+      value = substr($0, index($0, ":") + 1)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      if (value == expected) matches++
+    }
+    END { exit !(count == 1 && matches == 1) }
+  ' "$file"
+}
+
 guild_ids="$(read_setting DISCORD_REQUIRED_GUILD_IDS)" || {
     echo "ERROR: $settings_file には DISCORD_REQUIRED_GUILD_IDS を 1 回だけ設定してください" >&2
     exit 1
@@ -196,9 +211,11 @@ if ! grep -Fqx "MinecraftDiscordAccountLinkedRoleNameToAddUserTo: \"$linked_role
   echo "ERROR: 連携済みアカウントへ付与する Discord Role ID を config.yml に反映できませんでした" >&2
   exit 1
 fi
-if ! grep -Fqx "    Require subscriber role to join: $require_subscriber_role" "$linking_file" || \
-    ! grep -Fqx "    Subscriber roles: $subscriber_roles" "$linking_file" || \
-    ! grep -Fqx "    Require all of the listed roles: $require_all_roles" "$linking_file"; then
+if ! setting_equals "$linking_file" \
+      "Require subscriber role to join" "$require_subscriber_role" || \
+    ! setting_equals "$linking_file" "Subscriber roles" "$subscriber_roles" || \
+    ! setting_equals "$linking_file" \
+      "Require all of the listed roles" "$require_all_roles"; then
   echo "ERROR: Discord の Role 条件を linking.yml に反映できませんでした" >&2
   exit 1
 fi

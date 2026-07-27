@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 set -eu
+umask 077
 
 root_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 mode="apply"

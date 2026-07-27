@@ -45,9 +45,9 @@ Minecraft を初めて起動する前に、`.env` へホスト固有の値を設
 ```sh
 umask 077
 rcon_password="$(openssl rand -base64 32)" || exit 1
-awk -v value="$rcon_password" '
+RCON_PASSWORD="$rcon_password" awk '
   /^RCON_PASSWORD=/ {
-    print "RCON_PASSWORD=" value
+    print "RCON_PASSWORD=" ENVIRON["RCON_PASSWORD"]
     next
   }
   { print }

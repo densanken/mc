@@ -38,6 +38,14 @@ verify() {
 
 verify >/dev/null
 
+cp "$fixture/minecraft/paper-test.jar" "$fixture/paper-test.jar"
+printf 'tampered paper fixture\n' > "$fixture/minecraft/paper-test.jar"
+if verify >/dev/null 2>&1; then
+  echo "FAIL: Paper jar with a mismatched official hash was accepted" >&2
+  exit 1
+fi
+mv "$fixture/paper-test.jar" "$fixture/minecraft/paper-test.jar"
+
 mv "$fixture/minecraft/plugins/DiscordSRV.jar" "$fixture/DiscordSRV.jar"
 if verify >/dev/null 2>&1; then
   echo "FAIL: missing Modrinth jar was accepted" >&2

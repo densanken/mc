@@ -37,9 +37,40 @@ sha512_file() {
 
 api_get() {
   local url="$1"
-  curl -fsS \
+  local subject="${2:-$url}"
+  local response_file http_status
+  response_file="$(mktemp)"
+  if ! http_status="$(curl -sS \
+    --connect-timeout 10 \
+    --max-time 30 \
+    --retry 3 \
+    --retry-connrefused \
+    --retry-delay 1 \
+    --retry-max-time 90 \
     -H "User-Agent: densanken-mc-setup/1.0 (modrinth lock update)" \
-    "$url"
+    -o "$response_file" \
+    -w '%{http_code}' \
+    "$url")"; then
+    rm -f "$response_file"
+    echo "ERROR: Modrinth API への接続に失敗しました: $subject ($url)" >&2
+    return 1
+  fi
+  case "$http_status" in
+    200)
+      cat "$response_file"
+      rm -f "$response_file"
+      ;;
+    404)
+      rm -f "$response_file"
+      echo "ERROR: Modrinth 管理対象として見つかりません (HTTP 404): $subject ($url)" >&2
+      return 1
+      ;;
+    *)
+      rm -f "$response_file"
+      echo "ERROR: Modrinth API が HTTP $http_status を返しました: $subject ($url)" >&2
+      return 1
+      ;;
+  esac
 }
 
 load_installed_jars() {
@@ -59,7 +90,9 @@ load_installed_jars() {
     local filename hash response row
     filename="$(basename "$jar")"
     hash="$(sha512_file "$jar")"
-    response="$(api_get "https://api.modrinth.com/v2/version_file/$hash?algorithm=sha512")"
+    response="$(api_get \
+      "https://api.modrinth.com/v2/version_file/$hash?algorithm=sha512" \
+      "$filename")"
     row="$(jq -r --arg hash "$hash" '
       . as $version
       | first(.files[] | select(.hashes.sha512 == $hash)) as $file

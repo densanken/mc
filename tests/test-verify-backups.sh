@@ -4,6 +4,8 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "$0")/.." && pwd)"
 fixture="$(mktemp -d)"
 trap 'rm -rf "$fixture"' EXIT
+real_tar="$(command -v tar)"
+real_cp="$(command -v cp)"
 
 mkdir -p "$fixture/world" "$fixture/coreprotect" "$fixture/data/world"
 printf 'level nbt fixture\n' | gzip > "$fixture/data/world/level.dat"
@@ -25,12 +27,13 @@ cat > "$fixture/swap-bin/tar" <<'EOF'
 #!/usr/bin/env sh
 if [ ! -e "$SWAP_MARKER" ]; then
   : > "$SWAP_MARKER"
-  /bin/cp "$UNSAFE_ARCHIVE" "$ORIGINAL_ARCHIVE"
+  "$REAL_CP" "$UNSAFE_ARCHIVE" "$ORIGINAL_ARCHIVE"
 fi
-exec /usr/bin/tar "$@"
+exec "$REAL_TAR" "$@"
 EOF
 chmod 0755 "$fixture/swap-bin/tar"
 if PATH="$fixture/swap-bin:$PATH" SWAP_MARKER="$fixture/swap-marker" \
+    REAL_CP="$real_cp" REAL_TAR="$real_tar" \
     UNSAFE_ARCHIVE="$fixture/replacement-unsafe.tar.gz" \
     ORIGINAL_ARCHIVE="$fixture/world/minecraft-20260101-020000.tar.gz" \
     WORLD_BACKUP_DIR="$fixture/world" COREPROTECT_BACKUP_DIR="$fixture/coreprotect" \

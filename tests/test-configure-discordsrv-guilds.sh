@@ -25,9 +25,9 @@ printf '%s\n' \
   '  Enabled: true' \
   '  Must be in Discord server: false' \
   '  Subscriber role:' \
-  '    Require subscriber role to join: false' \
-  '    Subscriber roles: []' \
-  '    Require all of the listed roles: false' > "$linking"
+  '      Require subscriber role to join: false' \
+  '      Subscriber roles: []' \
+  '      Require all of the listed roles: false' > "$linking"
 printf 'fixture\n' > "$gate_jar"
 
 config_before_check="$(cat "$discord_config")"
@@ -62,9 +62,9 @@ fi
 grep -Fqx 'Channels: {"global": "34567890123456789"}' "$discord_config"
 grep -Fqx 'MinecraftDiscordAccountLinkedRoleNameToAddUserTo: "67890123456789012"' "$discord_config"
 grep -q '^  Must be in Discord server: true$' "$linking"
-grep -Fqx '    Require subscriber role to join: true' "$linking"
-grep -Fqx '    Subscriber roles: ["45678901234567890", "56789012345678901"]' "$linking"
-grep -Fqx '    Require all of the listed roles: false' "$linking"
+grep -Fqx '      Require subscriber role to join: true' "$linking"
+grep -Fqx '      Subscriber roles: ["45678901234567890", "56789012345678901"]' "$linking"
+grep -Fqx '      Require all of the listed roles: false' "$linking"
 grep -q '^  - "12345678901234567"$' "$gate_config"
 grep -q '^  - "23456789012345678"$' "$gate_config"
 grep -q '^membership-cache-seconds: 30$' "$gate_config"
@@ -87,9 +87,23 @@ DISCORDSRV_LINKING_FILE="$linking" \
 DISCORD_GUILD_GATE_CONFIG_FILE="$gate_config" \
 DISCORD_GUILD_GATE_JAR="$gate_jar" \
   "$root_dir/scripts/configure-discordsrv-guilds.sh" >/dev/null
-grep -Fqx '    Require subscriber role to join: false' "$linking"
-grep -Fqx '    Subscriber roles: []' "$linking"
+grep -Fqx '      Require subscriber role to join: false' "$linking"
+grep -Fqx '      Subscriber roles: []' "$linking"
 grep -Fqx 'MinecraftDiscordAccountLinkedRoleNameToAddUserTo: ""' "$discord_config"
+
+printf '%s\n' \
+  'DISCORD_REQUIRED_GUILD_IDS=12345678901234567' \
+  'DISCORD_CHAT_CHANNEL_ID=34567890123456789' \
+  'DISCORD_LINKED_ROLE_ID=' \
+  'DISCORD_REQUIRED_ROLE_IDS=45678901234567890' \
+  'DISCORD_REQUIRE_ALL_ROLES=true' > "$settings"
+DISCORDSRV_ENV_FILE="$settings" \
+DISCORDSRV_CONFIG_FILE="$discord_config" \
+DISCORDSRV_LINKING_FILE="$linking" \
+DISCORD_GUILD_GATE_CONFIG_FILE="$gate_config" \
+DISCORD_GUILD_GATE_JAR="$gate_jar" \
+  "$root_dir/scripts/configure-discordsrv-guilds.sh" >/dev/null
+grep -Fqx '      Require all of the listed roles: true' "$linking"
 
 printf '%s\n' \
   'DISCORD_REQUIRED_GUILD_IDS=invalid' \

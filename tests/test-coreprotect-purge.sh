@@ -33,4 +33,23 @@ if PURGE_COUNT_FILE="$fixture/count" PURGE_SUCCEEDS_ON=4 PATH="$fixture:$PATH" \
   exit 1
 fi
 
+for retry_settings in \
+  'COREPROTECT_PURGE_ATTEMPTS=00 COREPROTECT_PURGE_RETRY_SECONDS=1' \
+  'COREPROTECT_PURGE_ATTEMPTS=1:2 COREPROTECT_PURGE_RETRY_SECONDS=1' \
+  'COREPROTECT_PURGE_ATTEMPTS=1 COREPROTECT_PURGE_RETRY_SECONDS=00' \
+  'COREPROTECT_PURGE_ATTEMPTS=1 COREPROTECT_PURGE_RETRY_SECONDS=1:2'
+do
+  read -r attempts retry_seconds <<<"$retry_settings"
+  attempts="${attempts#COREPROTECT_PURGE_ATTEMPTS=}"
+  retry_seconds="${retry_seconds#COREPROTECT_PURGE_RETRY_SECONDS=}"
+  if env PURGE_COUNT_FILE="$fixture/count" PATH="$fixture:$PATH" \
+      COREPROTECT_PURGE_ATTEMPTS="$attempts" \
+      COREPROTECT_PURGE_RETRY_SECONDS="$retry_seconds" \
+      "$root_dir/scripts/coreprotect-purge-30d.sh" \
+      >/dev/null 2>&1; then
+    echo "FAIL: invalid purge retry settings were accepted: $retry_settings" >&2
+    exit 1
+  fi
+done
+
 echo "OK: CoreProtect purge retry fixtures passed"

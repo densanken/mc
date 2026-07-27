@@ -25,8 +25,28 @@ if [ -z "$RCON_PASSWORD" ]; then
 fi
 export RCON_PASSWORD
 
-case "$MAX_ATTEMPTS:$RETRY_SECONDS" in
-  *[!0-9:]* | 0:* | *:0)
+case "$MAX_ATTEMPTS" in
+  '' | *[!0-9]*)
+    echo "ERROR: readiness retry settings must be positive integers" >&2
+    exit 2
+    ;;
+esac
+case "$MAX_ATTEMPTS" in
+  *[1-9]*) ;;
+  *)
+    echo "ERROR: readiness retry settings must be positive integers" >&2
+    exit 2
+    ;;
+esac
+case "$RETRY_SECONDS" in
+  '' | *[!0-9]*)
+    echo "ERROR: readiness retry settings must be positive integers" >&2
+    exit 2
+    ;;
+esac
+case "$RETRY_SECONDS" in
+  *[1-9]*) ;;
+  *)
     echo "ERROR: readiness retry settings must be positive integers" >&2
     exit 2
     ;;

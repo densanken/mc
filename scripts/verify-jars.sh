@@ -247,18 +247,12 @@ main() {
     exit 2
   fi
 
-  local failures=0 result
+  local failures=0
   verify_paper || failures=$((failures + 1))
   verify_gate_jar || failures=$((failures + 1))
 
-  set +e
-  verify_lock_entries
-  result=$?
-  failures=$((failures + result))
-  verify_no_extra_jars
-  result=$?
-  failures=$((failures + result))
-  set -e
+  verify_lock_entries || failures=$((failures + $?))
+  verify_no_extra_jars || failures=$((failures + $?))
 
   if [ "$failures" -gt 0 ]; then
     echo "FAIL: $failures verification failure(s)"

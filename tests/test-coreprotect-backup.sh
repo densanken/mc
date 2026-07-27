@@ -83,10 +83,8 @@ if [ ! -e "$signal_ready" ]; then
   exit 1
 fi
 kill -TERM "$signal_pid"
-set +e
-wait "$signal_pid"
-signal_status=$?
-set -e
+signal_status=0
+wait "$signal_pid" || signal_status=$?
 if [ "$signal_status" -ne 143 ]; then
   echo "FAIL: TERM returned unexpected status: $signal_status" >&2
   exit 1
@@ -237,11 +235,11 @@ fi
 
 assert_failed_cleanly() {
   local case_name="$1"
-  local failing_command="$2"
+  local failure_status="$2"
   local failure_dir="$fixture/failure-$case_name"
   local fake_bin="$fixture/bin-$case_name"
   mkdir -p "$failure_dir" "$fake_bin"
-  printf '#!/bin/sh\nexit %s\n' "$failing_command" > "$fake_bin/$case_name"
+  printf '#!/bin/sh\nexit %s\n' "$failure_status" > "$fake_bin/$case_name"
   chmod 0755 "$fake_bin/$case_name"
 
   if PATH="$fake_bin:$PATH" "$root_dir/scripts/coreprotect-backup-db.sh" \

@@ -52,7 +52,7 @@ fi
 "$runuser_bin" -u "$run_user" -- "$root_dir/scripts/check-runtime-identity.sh" >/dev/null
 "$runuser_bin" -u "$run_user" -- "$root_dir/scripts/backup-root.sh" >/dev/null
 case "$root_dir" in
-  *[[:space:]]* | *%* | *\"* | *\\*)
+  *[[:space:]]* | *%* | *\$* | *\"* | *\\*)
     echo "ERROR: systemd unit に使用できない文字を配置パスに含んでいます: $root_dir" >&2
     exit 1
     ;;

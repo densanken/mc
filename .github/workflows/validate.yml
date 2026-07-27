@@ -88,21 +88,33 @@ jobs:
 
       - name: Prepare integration environment
         run: |
+          umask 077
           backup_root="$RUNNER_TEMP/mc-backups"
-          echo "RCON_PASSWORD=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          rcon_password="$(openssl rand -base64 32)"
+          echo "::add-mask::$rcon_password"
+          echo "RCON_PASSWORD=$rcon_password" >> "$GITHUB_ENV"
           echo "MINECRAFT_UID=$(id -u)" >> "$GITHUB_ENV"
           echo "MINECRAFT_GID=$(id -g)" >> "$GITHUB_ENV"
           echo "BACKUP_ROOT=$backup_root" >> "$GITHUB_ENV"
           cp .env.example .env
+          RCON_PASSWORD="$rcon_password" awk '
+            /^RCON_PASSWORD=/ {
+              print "RCON_PASSWORD=" ENVIRON["RCON_PASSWORD"]
+              next
+            }
+            { print }
+          ' .env > .env.tmp
+          mv .env.tmp .env
           sed -i \
             -e "s|^MINECRAFT_UID=.*|MINECRAFT_UID=$(id -u)|" \
             -e "s|^MINECRAFT_GID=.*|MINECRAFT_GID=$(id -g)|" \
             -e "s|^BACKUP_ROOT=.*|BACKUP_ROOT=$backup_root|" \
             .env
+          chmod 600 .env
           ./scripts/prepare-backup-storage.sh "$backup_root"
 
       - name: Start Minecraft and download locked plugins
-        run: docker compose --env-file .env.example up --wait --detach minecraft
+        run: docker compose --env-file .env up --wait --detach minecraft
 
       - name: Build DiscordGuildGate reproducibly
         run: |
@@ -114,9 +126,9 @@ jobs:
 
       - name: Load DiscordGuildGate in Paper
         run: |
-          docker compose --env-file .env.example restart --no-deps minecraft
-          docker compose --env-file .env.example up --wait --no-deps minecraft
-          status="$(docker compose --env-file .env.example exec -T minecraft \
+          docker compose --env-file .env restart --no-deps minecraft
+          docker compose --env-file .env up --wait --no-deps minecraft
+          status="$(docker compose --env-file .env exec -T minecraft \
             rcon-cli discordguildgate status |
             sed $'s/\033\\[[0-9;]*m//g' |
             tr -d '\r\n')"
@@ -135,9 +147,9 @@ jobs:
             -e 's/^ForcedLanguage:.*/ForcedLanguage: Japanese/' \
             minecraft/plugins/DiscordSRV/config.yml
           ./scripts/configure-runtime-settings.sh
-          docker compose --env-file .env.example restart --no-deps minecraft
-          docker compose --env-file .env.example up --wait --no-deps minecraft
-          status="$(docker compose --env-file .env.example exec -T minecraft \
+          docker compose --env-file .env restart --no-deps minecraft
+          docker compose --env-file .env up --wait --no-deps minecraft
+          status="$(docker compose --env-file .env exec -T minecraft \
             rcon-cli discordguildgate status |
             sed $'s/\033\\[[0-9;]*m//g' |
             tr -d '\r\n')"
@@ -145,17 +157,17 @@ jobs:
 
       - name: Verify required plugins loaded
         run: |
-          plugins="$(docker compose --env-file .env.example exec -T minecraft rcon-cli plugins | tr -d '\r')"
+          plugins="$(docker compose --env-file .env exec -T minecraft rcon-cli plugins | tr -d '\r')"
           printf '%s\n' "$plugins"
           for plugin in CoreProtect DiscordGuildGate DiscordSRV Maintenance TabTPS ViaVersion voicechat; do
             grep -Fq "$plugin" <<<"$plugins"
           done
-          plugin_health="$(docker compose --env-file .env.example exec -T minecraft \
+          plugin_health="$(docker compose --env-file .env exec -T minecraft \
             rcon-cli discordguildgate plugins |
             sed $'s/\033\\[[0-9;]*m//g' |
             tr -d '\r\n')"
           test "$plugin_health" = 'DISABLED required-plugins=DiscordSRV'
-          logs="$(docker compose --env-file .env.example logs --no-color minecraft)"
+          logs="$(docker compose --env-file .env logs --no-color minecraft)"
           if grep -Eq \
             'Could not load .*plugin|Error occurred while enabling|InvalidPluginException|UnsupportedClassVersionError' \
             <<<"$logs"; then
@@ -168,17 +180,17 @@ jobs:
 
       - name: Write a world backup outside the project
         run: |
-          docker compose --env-file .env.example up --detach --wait backups
-          docker compose --env-file .env.example exec -T backups backup now
+          docker compose --env-file .env up --detach --wait backups
+          docker compose --env-file .env exec -T backups backup now
           test -n "$(find "$BACKUP_ROOT/world" -maxdepth 1 -type f -name 'minecraft-*.tar.gz' -print -quit)"
           test ! -d backups/world
 
       - name: Show container diagnostics
         if: failure()
         run: |
-          docker compose --env-file .env.example ps --all || true
-          docker compose --env-file .env.example logs --no-color --tail=300 minecraft || true
+          docker compose --env-file .env ps --all || true
+          docker compose --env-file .env logs --no-color --tail=300 minecraft || true
 
       - name: Stop containers
         if: always()
-        run: docker compose --env-file .env.example down
+        run: docker compose --env-file .env down

@@ -10,17 +10,27 @@ if [ ! -f "$discord_config" ]; then
   exit 1
 fi
 
-current_language="$({
+read_language() {
   awk -F: '
     /^ForcedLanguage:/ {
       value = substr($0, index($0, ":") + 1)
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-      gsub(/^["\047]|["\047]$/, "", value)
+      first = substr(value, 1, 1)
+      last = substr(value, length(value), 1)
+      if ((first == "\"" && last == "\"") ||
+          (first == "\047" && last == "\047")) {
+        value = substr(value, 2, length(value) - 2)
+      } else if (first == "\"" || first == "\047" ||
+                 last == "\"" || last == "\047") {
+        exit
+      }
       print tolower(value)
       exit
     }
   ' "$discord_config"
-} || true)"
+}
+
+current_language="$(read_language || true)"
 
 case "$current_language" in
   ja|japanese)
@@ -38,9 +48,12 @@ elif ! docker compose --project-directory "$root_dir" exec -T minecraft \
   exit 1
 fi
 
-if ! grep -Eq '^ForcedLanguage:[[:space:]]*(JA|Japanese)[[:space:]]*$' "$discord_config"; then
-  echo "ERROR: DiscordSRV の日本語設定を確認できませんでした" >&2
-  exit 1
-fi
+case "$(read_language || true)" in
+  ja|japanese) ;;
+  *)
+    echo "ERROR: DiscordSRV の日本語設定を確認できませんでした" >&2
+    exit 1
+    ;;
+esac
 
 echo "OK: DiscordSRV の表示言語を日本語へ変更しました"

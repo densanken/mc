@@ -96,6 +96,21 @@ chmod 0755 \
   "$fixture/id" "$fixture/flock" "$fixture/runuser" \
   "$fixture/systemctl" "$fixture/sqlite3"
 
+dollar_project="$fixture/project\$name"
+mkdir -p "$dollar_project/scripts"
+cp "$root_dir/scripts/install-systemd-timers.sh" \
+  "$root_dir/scripts/check-runtime-identity.sh" \
+  "$root_dir/scripts/backup-root.sh" \
+  "$dollar_project/scripts/"
+if PATH="$fixture:$PATH" TEST_RUN_GROUP="$actual_group" SUDO_USER="$actual_user" \
+    SYSTEMCTL_TEST_LOG="$fixture/dollar-path.log" SYSTEMCTL_BIN="$fixture/systemctl" \
+    SYSTEMD_UNIT_DIR="$fixture/units" SQLITE3_BIN="$fixture/sqlite3" \
+    RUNUSER_BIN="$fixture/runuser" \
+      "$dollar_project/scripts/install-systemd-timers.sh" >/dev/null 2>&1; then
+  echo "FAIL: CoreProtect timer installer accepted a project path containing $" >&2
+  exit 1
+fi
+
 mkdir -p "$fixture/units"
 : > "$fixture/timer-install.log"
 PATH="$fixture:$PATH" TEST_RUN_GROUP="$actual_group" SUDO_USER="$actual_user" \

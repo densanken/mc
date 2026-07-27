@@ -118,7 +118,7 @@ grep -Fqx 'MinecraftDiscordAccountLinkedRoleNameToAddUserTo: "45678901234567890"
 grep -q '^Experiment_WebhookChatMessageUsernameFromDiscord: false$' "$config"
 grep -q '^  Enabled: true$' "$linking"
 grep -Fqx '  Not linked message: "&7参加するには &9Discord &7アカウントとの連携が必要です。\n\n&7Discord で &b/link code:{CODE} &7を実行してください。\n&7連携が完了したら、Minecraftサーバーへ接続し直してください。"' "$linking"
-if grep -q 'changethisintheconfig\|{INVITE}' "$linking"; then
+if grep -Eq 'changethisintheconfig|\{INVITE\}' "$linking"; then
   echo "FAIL: invite link remains in the initial account-link message" >&2
   exit 1
 fi
@@ -131,6 +131,10 @@ grep -Fqx 'DiscordToMinecraftChatMessageFormatNoRole: "[<aqua>Discord</aqua>] %n
 cmp "$tabtps_source/main.conf" "$tabtps_target/main.conf"
 cmp "$tabtps_source/display-configs/default.conf" "$tabtps_target/display-configs/default.conf"
 [ "$(wc -l < "$language_log" | tr -d ' ')" = 1 ]
+if [ "$(wc -l < "$fixture/harden.log" | tr -d ' ')" -ne 1 ]; then
+  echo "FAIL: secret permissions were not hardened exactly once after success" >&2
+  exit 1
+fi
 
 perl -pi -e 's/^ForcedLanguage:.*/ForcedLanguage: none/' "$config"
 perl -pi -e 's/^DISCORD_REQUIRED_GUILD_IDS=.*/DISCORD_REQUIRED_GUILD_IDS=invalid/' "$settings"
@@ -153,6 +157,10 @@ if DISCORDSRV_CONFIG_FILE="$config" \
 fi
 if [ -e "$language_log" ] || ! grep -q '^ForcedLanguage: none$' "$config"; then
   echo "FAIL: language settings changed before preflight completed" >&2
+  exit 1
+fi
+if [ "$(wc -l < "$fixture/harden.log" | tr -d ' ')" -ne 2 ]; then
+  echo "FAIL: secret permissions were not hardened after a failed preflight" >&2
   exit 1
 fi
 

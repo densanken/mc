@@ -67,7 +67,7 @@ grep -q '^Experiment_WebhookChatMessageDelivery: true$' "$config"
 grep -q '^Experiment_WebhookChatMessageUsernameFromDiscord: false$' "$config"
 grep -Fqx 'DiscordToMinecraftChatMessageFormat: "[<aqua>Discord</aqua>] %name%%reply% » %message%"' "$messages"
 grep -Fqx 'DiscordToMinecraftChatMessageFormatNoRole: "[<aqua>Discord</aqua>] %name%%reply% » %message%"' "$messages"
-if grep -q '%toprole\|%allroles' "$messages"; then
+if grep -Eq '%toprole|%allroles' "$messages"; then
   echo "FAIL: Discord to Minecraft chat format still contains a role placeholder" >&2
   exit 1
 fi

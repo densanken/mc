@@ -165,6 +165,8 @@ for world_archive in ${world_archives[@]+"${world_archives[@]}"}; do
   fi
   world_timestamp="${BASH_REMATCH[1]}"
   matching_coreprotect=""
+  # 対応する archive 自体は使用せず、world より前の正常な backup が
+  # 少なくとも一つ存在することだけを確認する。
   # shellcheck disable=SC1083
   for coreprotect_archive in ${coreprotect_archives[@]+"${coreprotect_archives[@]}"}; do
     coreprotect_name="${coreprotect_archive##*/}"

@@ -88,4 +88,23 @@ if PATH="$fixture:$PATH" RCON_TEST_RESPONSE='' \
   exit 1
 fi
 
+for retry_settings in \
+  'PUBLIC_READINESS_ATTEMPTS=00 PUBLIC_READINESS_RETRY_SECONDS=1' \
+  'PUBLIC_READINESS_ATTEMPTS=1:2 PUBLIC_READINESS_RETRY_SECONDS=1' \
+  'PUBLIC_READINESS_ATTEMPTS=1 PUBLIC_READINESS_RETRY_SECONDS=00' \
+  'PUBLIC_READINESS_ATTEMPTS=1 PUBLIC_READINESS_RETRY_SECONDS=1:2'
+do
+  read -r attempts retry_seconds <<<"$retry_settings"
+  attempts="${attempts#PUBLIC_READINESS_ATTEMPTS=}"
+  retry_seconds="${retry_seconds#PUBLIC_READINESS_RETRY_SECONDS=}"
+  if env PATH="$fixture:$PATH" RCON_PASSWORD_FILE="$fixture/rcon-password" \
+      PUBLIC_READINESS_ATTEMPTS="$attempts" \
+      PUBLIC_READINESS_RETRY_SECONDS="$retry_seconds" \
+      "$root_dir/scripts/check-public-readiness.sh" \
+      >/dev/null 2>&1; then
+    echo "FAIL: invalid readiness retry settings were accepted: $retry_settings" >&2
+    exit 1
+  fi
+done
+
 echo "OK: public readiness fixtures passed"

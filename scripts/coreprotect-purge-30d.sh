@@ -4,8 +4,28 @@ set -eu
 attempts="${COREPROTECT_PURGE_ATTEMPTS:-30}"
 retry_seconds="${COREPROTECT_PURGE_RETRY_SECONDS:-10}"
 
-case "$attempts:$retry_seconds" in
-  *[!0-9:]* | 0:* | *:0)
+case "$attempts" in
+  '' | *[!0-9]*)
+    echo "ERROR: purge の再試行回数と間隔は正の整数で指定してください" >&2
+    exit 2
+    ;;
+esac
+case "$attempts" in
+  *[1-9]*) ;;
+  *)
+    echo "ERROR: purge の再試行回数と間隔は正の整数で指定してください" >&2
+    exit 2
+    ;;
+esac
+case "$retry_seconds" in
+  '' | *[!0-9]*)
+    echo "ERROR: purge の再試行回数と間隔は正の整数で指定してください" >&2
+    exit 2
+    ;;
+esac
+case "$retry_seconds" in
+  *[1-9]*) ;;
+  *)
     echo "ERROR: purge の再試行回数と間隔は正の整数で指定してください" >&2
     exit 2
     ;;
