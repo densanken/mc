@@ -1,0 +1,10 @@
+# LuckPerms を使わない構成の既定権限
+# 管理者権限は ops.json の op level 4 に任せる
+# ここでは全参加者へ付与する権限だけを定義する
+# Simple Voice Chat の listen、speak、groups は plugin の既定値で全員に付与される
+densanken.player:
+  description: 全参加者に付与する権限
+  default: true
+  children:
+    # TabTPS の tab 表示を login 時に自動で有効化する
+    tabtps.defaultdisplay: true

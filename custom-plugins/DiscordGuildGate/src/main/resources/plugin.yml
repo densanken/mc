@@ -1,0 +1,15 @@
+name: DiscordGuildGate
+version: 1.0.0
+main: io.github.densanken.mc.discordguildgate.DiscordGuildGate
+api-version: "26.1"
+depend: [DiscordSRV]
+description: Requires a linked Discord account to belong to one allowed Discord guild.
+commands:
+  discordguildgate:
+    description: Reports whether the Discord guild access gate is ready.
+    usage: /discordguildgate <status|plugins>
+    permission: discordguildgate.status
+permissions:
+  discordguildgate.status:
+    description: Allows checking the Discord guild access gate status.
+    default: op
