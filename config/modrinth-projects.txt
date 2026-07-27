@@ -1,0 +1,9 @@
+# itzg/minecraft-server が Modrinth から取得する Paper plugin
+# spark は Paper 1.21+/26.1+ に同梱されるため、別 jar を取得しない
+# version_number を固定し、再起動時の意図しない更新を防ぐ
+discordsrv:1.30.5
+simple-voice-chat:bukkit-2.6.21
+viaversion:5.11.0
+coreprotect:24.0
+tabtps:1.4.1
+maintenance:5.1.0

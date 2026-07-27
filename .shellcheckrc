@@ -1,0 +1,2 @@
+# CDPATH= cd は cd の出力汚染を防ぐ意図的なイディオム
+disable=SC1007

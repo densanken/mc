@@ -1,0 +1,49 @@
+# Minecraft runtime data
+minecraft/.cache/
+minecraft/.modrinth-manifest.json
+minecraft/.paper.env
+minecraft/.papermc-manifest.json
+minecraft/.rcon-cli*
+minecraft/banned-*.json
+minecraft/bukkit.yml
+minecraft/cache/
+minecraft/commands.yml
+minecraft/config/
+minecraft/crash-reports/
+minecraft/eula.txt
+minecraft/help.yml
+minecraft/libraries/
+minecraft/logs/
+minecraft/ops.json
+minecraft/paper-*.jar
+/minecraft/server-icon.png
+minecraft/server.properties
+minecraft/spigot.yml
+minecraft/usercache.json
+minecraft/version_history.json
+minecraft/versions/
+minecraft/whitelist.json
+minecraft/world*/
+minecraft/*.jar
+
+# Restore work directories can contain worlds and local secrets
+minecraft.before-restore.*/
+
+# Plugin runtime data
+minecraft/plugins/**
+!minecraft/plugins/
+!minecraft/plugins/README.md
+
+# Local backup artifacts
+/backups/
+
+# Local secrets
+.env
+.coreprotect-backup.lock
+.discordsrv.env
+
+# Host-local server appearance
+/config/server-icon.png
+
+# Host-local maintenance state
+.coreprotect-maintenance

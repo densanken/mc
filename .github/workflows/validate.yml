@@ -1,0 +1,172 @@
+name: Validate configuration
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install validation tools
+        run: sudo apt-get update && sudo apt-get install --yes shellcheck sqlite3
+
+      - name: Run ShellCheck
+        run: shellcheck scripts/*.sh tests/*.sh
+
+      - name: Check repository hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            if [ "$EVENT_NAME" = pull_request ]; then
+              git diff --check "$BASE_SHA"...HEAD
+            else
+              git diff --check "$BASE_SHA" HEAD
+            fi
+          else
+            git diff-tree --check --root --no-commit-id -r HEAD
+          fi
+          for icon in config/server-icon.png minecraft/server-icon.png; do
+            if git ls-files --error-unmatch "$icon" >/dev/null 2>&1; then
+              echo "$icon must not be tracked" >&2
+              exit 1
+            fi
+            git check-ignore --quiet "$icon"
+          done
+          unexpected_runtime="$(
+            git ls-files -- minecraft backups |
+              awk '
+                $0 != "minecraft/permissions.yml" &&
+                $0 != "minecraft/plugins/README.md"
+              '
+          )"
+          if [ -n "$unexpected_runtime" ]; then
+            printf 'Runtime files must not be tracked:\n%s\n' "$unexpected_runtime" >&2
+            exit 1
+          fi
+          for private_path in \
+            .env \
+            .discordsrv.env \
+            .coreprotect-backup.lock \
+            .coreprotect-maintenance
+          do
+            if git ls-files --error-unmatch "$private_path" >/dev/null 2>&1; then
+              echo "$private_path must not be tracked" >&2
+              exit 1
+            fi
+          done
+
+      - name: Run fixture and Compose tests
+        run: ./scripts/test.sh
+
+  integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Prepare integration environment
+        run: |
+          backup_root="$RUNNER_TEMP/mc-backups"
+          echo "RCON_PASSWORD=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          echo "MINECRAFT_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "MINECRAFT_GID=$(id -g)" >> "$GITHUB_ENV"
+          echo "BACKUP_ROOT=$backup_root" >> "$GITHUB_ENV"
+          cp .env.example .env
+          sed -i \
+            -e "s|^MINECRAFT_UID=.*|MINECRAFT_UID=$(id -u)|" \
+            -e "s|^MINECRAFT_GID=.*|MINECRAFT_GID=$(id -g)|" \
+            -e "s|^BACKUP_ROOT=.*|BACKUP_ROOT=$backup_root|" \
+            .env
+          ./scripts/prepare-backup-storage.sh "$backup_root"
+
+      - name: Start Minecraft and download locked plugins
+        run: docker compose --env-file .env.example up --wait --detach minecraft
+
+      - name: Build DiscordGuildGate reproducibly
+        run: |
+          ./scripts/build-discord-guild-gate.sh
+          first="$(sha256sum minecraft/plugins/DiscordGuildGate.jar | awk '{print $1}')"
+          ./scripts/build-discord-guild-gate.sh
+          second="$(sha256sum minecraft/plugins/DiscordGuildGate.jar | awk '{print $1}')"
+          test "$first" = "$second"
+
+      - name: Load DiscordGuildGate in Paper
+        run: |
+          docker compose --env-file .env.example restart --no-deps minecraft
+          docker compose --env-file .env.example up --wait --no-deps minecraft
+          test "$(docker compose --env-file .env.example exec -T minecraft rcon-cli discordguildgate status | tr -d '\r')" = \
+            'NOT_READY allowed-guild-ids-empty'
+
+      - name: Apply managed runtime settings
+        run: |
+          cp .discordsrv.env.example .discordsrv.env
+          sed -i \
+            -e 's/^DISCORD_REQUIRED_GUILD_IDS=.*/DISCORD_REQUIRED_GUILD_IDS=123456789012345678/' \
+            -e 's/^DISCORD_CHAT_CHANNEL_ID=.*/DISCORD_CHAT_CHANNEL_ID=234567890123456789/' \
+            .discordsrv.env
+          chmod 600 .discordsrv.env
+          ./scripts/configure-runtime-settings.sh
+          docker compose --env-file .env.example restart --no-deps minecraft
+          docker compose --env-file .env.example up --wait --no-deps minecraft
+          test "$(docker compose --env-file .env.example exec -T minecraft rcon-cli discordguildgate status | tr -d '\r')" = \
+            'NOT_READY discordsrv-not-ready'
+
+      - name: Verify required plugins loaded
+        run: |
+          plugins="$(docker compose --env-file .env.example exec -T minecraft rcon-cli plugins | tr -d '\r')"
+          printf '%s\n' "$plugins"
+          for plugin in CoreProtect DiscordGuildGate DiscordSRV Maintenance TabTPS ViaVersion voicechat; do
+            grep -Fq "$plugin" <<<"$plugins"
+          done
+          plugin_health="$(docker compose --env-file .env.example exec -T minecraft \
+            rcon-cli discordguildgate plugins | tr -d '\r')"
+          grep -Eq '^ENABLED required-plugins=[1-9][0-9]*$' <<<"$plugin_health"
+          logs="$(docker compose --env-file .env.example logs --no-color minecraft)"
+          if grep -Eq \
+            'Could not load .*plugin|Error occurred while enabling|InvalidPluginException|UnsupportedClassVersionError' \
+            <<<"$logs"; then
+            echo 'A required plugin failed to load' >&2
+            exit 1
+          fi
+
+      - name: Verify required jars
+        run: ./scripts/verify-jars.sh
+
+      - name: Write a world backup outside the project
+        run: |
+          docker compose --env-file .env.example up --detach --wait backups
+          docker compose --env-file .env.example exec -T backups backup now
+          test -n "$(find "$BACKUP_ROOT/world" -maxdepth 1 -type f -name 'minecraft-*.tar.gz' -print -quit)"
+          test ! -d backups/world
+
+      - name: Show container diagnostics
+        if: failure()
+        run: |
+          docker compose --env-file .env.example ps --all || true
+          docker compose --env-file .env.example logs --no-color --tail=300 minecraft || true
+
+      - name: Stop containers
+        if: always()
+        run: docker compose --env-file .env.example down

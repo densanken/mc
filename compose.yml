@@ -1,0 +1,194 @@
+name: mc
+
+x-container-logging: &container-logging
+  # 各 service の Docker log を 20 MiB x 5 世代に制限する
+  # `local` driver は rotation 後の log を圧縮する
+  driver: local
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  minecraft:
+    image: itzg/minecraft-server:java25@sha256:26eb3058a7c113a100c954e1ef34e6a68229bea502d4457db94eaf46ed14dc93
+    container_name: minecraft
+    restart: unless-stopped
+    stop_grace_period: 3m
+    entrypoint: ["/bin/sh", "/opt/mc/start-minecraft.sh"]
+    environment:
+      EULA: "TRUE"
+      TYPE: "PAPER"
+      VERSION: "26.1.2"
+      PAPER_BUILD: "74"
+      PAPER_CHANNEL: "default"
+      MEMORY: "8G"
+      TZ: "Asia/Tokyo"
+      UID: "${MINECRAFT_UID:-1000}"
+      GID: "${MINECRAFT_GID:-1000}"
+
+      # server.properties を Compose の環境変数から生成する
+      OVERRIDE_SERVER_PROPERTIES: "true"
+      ONLINE_MODE: "true"
+      ENABLE_WHITELIST: "false"
+      ENFORCE_WHITELIST: "false"
+      ENABLE_QUERY: "false"
+      ENABLE_RCON: "true"
+      RCON_PORT: "25575"
+      RCON_PASSWORD_FILE: "/run/secrets/rcon_password"
+      # RCON で応答を得にくい command は console pipe で実行する
+      CREATE_CONSOLE_IN_PIPE: "true"
+      VIEW_DISTANCE: "8"
+      SIMULATION_DISTANCE: "5"
+      ENTITY_BROADCAST_RANGE_PERCENTAGE: "75"
+      MAX_PLAYERS: "20"
+      SPAWN_PROTECTION: "16"
+      DIFFICULTY: "normal"
+      MOTD: |-
+        §aCCS Minecraft
+      # トラップ放置を許容するため、無操作切断を 24 時間にする
+      PLAYER_IDLE_TIMEOUT: "1440"
+      # プレイヤー不在が 300 秒続いたら tick 処理を止める
+      PAUSE_WHEN_EMPTY_SECONDS: "300"
+
+      MODRINTH_PROJECTS: "@/extras/modrinth-projects.txt"
+      MODRINTH_DOWNLOAD_DEPENDENCIES: "required"
+      RCON_CMDS_STARTUP: |-
+        gamerule players_sleeping_percentage 50
+    volumes:
+      - ./minecraft:/data
+      - ./config:/extras:ro
+      - ./scripts/start-minecraft.sh:/opt/mc/start-minecraft.sh:ro
+    secrets:
+      - rcon_password
+      - discordsrv_token
+    cpus: "4.0"
+    mem_limit: 10g
+    logging: *container-logging
+
+  playit:
+    image: ghcr.io/playit-cloud/playit-agent@sha256:ca4766ced6e5bcee19137337808ec8fee5867c0910ac737efbb0bb452c378521
+    container_name: playit
+    # service 名を省略した compose up では外部公開しない
+    profiles: ["public"]
+    # 意図して停止するまで、Docker daemon の再起動後も公開を復旧する
+    restart: unless-stopped
+    user: "65534:65534"
+    environment:
+      # Playit dashboard が Docker agent 用に発行する secret key
+      # agent image はこの値を必須にして起動する
+      SECRET_KEY: "${PLAYIT_SECRET_KEY:-}"
+    # non-root かつ read-only でも IPC socket を作成できる一時領域を使用する
+    command: ["--socket-path", "/tmp/playitd.sock"]
+    # Minecraft と network namespace を共有する
+    # agent から見た 127.0.0.1 は Minecraft container 自身を指す
+    network_mode: "service:minecraft"
+    depends_on:
+      public-readiness:
+        condition: service_completed_successfully
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cpus: "0.50"
+    mem_limit: 128m
+    logging: *container-logging
+
+  public-readiness:
+    image: itzg/minecraft-server:java25@sha256:26eb3058a7c113a100c954e1ef34e6a68229bea502d4457db94eaf46ed14dc93
+    restart: "no"
+    depends_on:
+      minecraft:
+        condition: service_healthy
+        # Minecraft の再作成後は readiness を再評価する
+        restart: true
+    entrypoint: ["/bin/sh", "/opt/mc/check-public-readiness.sh"]
+    environment:
+      RCON_HOST: "minecraft"
+      RCON_PORT: "25575"
+      RCON_PASSWORD_FILE: "/run/secrets/rcon_password"
+      PUBLIC_READINESS_ATTEMPTS: "${PUBLIC_READINESS_ATTEMPTS:-12}"
+      PUBLIC_READINESS_RETRY_SECONDS: "${PUBLIC_READINESS_RETRY_SECONDS:-5}"
+    volumes:
+      - ./scripts/check-public-readiness.sh:/opt/mc/check-public-readiness.sh:ro
+    secrets:
+      - rcon_password
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cpus: "0.25"
+    mem_limit: 64m
+    logging: *container-logging
+
+  backups:
+    image: itzg/mc-backup@sha256:dbb94f7cce227d7441839597515434adbb85738655fa46b2393ecf17a1ab4548
+    container_name: minecraft-backups
+    # 意図して停止するまで、Docker daemon の再起動後も定期バックアップを復旧する
+    restart: unless-stopped
+    # 大きな archive の作成中も、圧縮処理が完了するまで停止を待つ
+    stop_grace_period: 10m
+    user: "${MINECRAFT_UID:-1000}:${MINECRAFT_GID:-1000}"
+    entrypoint: ["/bin/sh", "/opt/mc/start-backups.sh"]
+    command: ["loop"]
+    depends_on:
+      minecraft:
+        condition: service_healthy
+    environment:
+      TZ: "Asia/Tokyo"
+      BACKUP_NAME: "minecraft"
+      BACKUP_INTERVAL: "1h"
+      # 初回 archive は運用者が backup now を実行して明示的に作成する
+      BACKUP_ON_STARTUP: "false"
+      # backup now の終了コードだけを呼び出し元へ返す
+      # loop は upstream どおり cleanup、prune、次回スケジュールへ進む
+      POST_BACKUP_SCRIPT: '[ "$${ONE_SHOT:-true}" = false ] || exit "$$1"'
+      INITIAL_DELAY: "0"
+      # 日数では削除せず、作成日時が新しい 100 世代を保持する
+      PRUNE_BACKUPS_DAYS: "0"
+      PRUNE_BACKUPS_COUNT: "100"
+      # プレイヤー不在時は backup を保留し、同一内容の tar を増やさない
+      PAUSE_IF_NO_PLAYERS: "true"
+      RCON_HOST: "minecraft"
+      RCON_PORT: "25575"
+      RCON_PASSWORD_FILE: "/run/secrets/rcon_password"
+      SERVER_HOST: "minecraft"
+      SERVER_PORT: "25565"
+      # secret を含む runtime file は backup tar から除外する
+      # server.properties と .rcon-cli.* は Compose の環境変数から再生成される
+      # DiscordSRV の設定 YAML は復元後に管理対象の設定を再反映する
+      EXCLUDES: "*.jar,cache,logs,*.tmp,plugins/CoreProtect/database.db*,server.properties,permissions.yml,.rcon-cli.env,.rcon-cli.yaml,plugins/DiscordSRV/config.yml,plugins/DiscordSRV/*.config.yml,plugins/DiscordSRV/.token"
+    volumes:
+      - ./minecraft:/data:ro
+      - type: bind
+        source: "${BACKUP_ROOT:-${HOME}/mc-backups}/world"
+        target: /backups
+        bind:
+          create_host_path: false
+      - ./scripts/start-backups.sh:/opt/mc/start-backups.sh:ro
+      - ./scripts/check-backup-storage.sh:/opt/mc/check-backup-storage.sh:ro
+    secrets:
+      - rcon_password
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    cpus: "1.0"
+    mem_limit: 512m
+    logging: *container-logging
+    healthcheck:
+      test: ["CMD", "/opt/mc/check-backup-storage.sh"]
+      interval: 1m
+      timeout: 30s
+      retries: 3
+      start_period: 10s
+
+secrets:
+  rcon_password:
+    environment: RCON_PASSWORD
+  discordsrv_token:
+    environment: DISCORDSRV_TOKEN
