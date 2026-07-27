@@ -116,8 +116,11 @@ jobs:
         run: |
           docker compose --env-file .env.example restart --no-deps minecraft
           docker compose --env-file .env.example up --wait --no-deps minecraft
-          test "$(docker compose --env-file .env.example exec -T minecraft rcon-cli discordguildgate status | tr -d '\r')" = \
-            'NOT_READY allowed-guild-ids-empty'
+          status="$(docker compose --env-file .env.example exec -T minecraft \
+            rcon-cli discordguildgate status |
+            sed $'s/\033\\[[0-9;]*m//g' |
+            tr -d '\r\n')"
+          test "$status" = 'NOT_READY allowed-guild-ids-empty'
 
       - name: Apply managed runtime settings
         run: |
@@ -130,8 +133,11 @@ jobs:
           ./scripts/configure-runtime-settings.sh
           docker compose --env-file .env.example restart --no-deps minecraft
           docker compose --env-file .env.example up --wait --no-deps minecraft
-          test "$(docker compose --env-file .env.example exec -T minecraft rcon-cli discordguildgate status | tr -d '\r')" = \
-            'NOT_READY discordsrv-not-ready'
+          status="$(docker compose --env-file .env.example exec -T minecraft \
+            rcon-cli discordguildgate status |
+            sed $'s/\033\\[[0-9;]*m//g' |
+            tr -d '\r\n')"
+          test "$status" = 'NOT_READY discordsrv-not-ready'
 
       - name: Verify required plugins loaded
         run: |

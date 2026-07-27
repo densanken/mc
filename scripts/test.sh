@@ -67,6 +67,8 @@ if [ "$backups_on_startup" != "\"false\"" ] && [ "$backups_on_startup" != "false
   echo "FAIL: backups must wait for an explicit initial backup" >&2
   exit 1
 fi
+# The dollars belong to the rendered Compose command and must stay literal here.
+# shellcheck disable=SC2016
 if ! grep -Fq '[ "$${ONE_SHOT:-true}" = false ] || exit "$$1"' <<<"$compose_config"; then
   echo "FAIL: one-shot backups do not propagate the upstream backup status" >&2
   exit 1
