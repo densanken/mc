@@ -98,7 +98,7 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
     new ConcurrentHashMap<>();
   private final ConcurrentHashMap<UUID, String> linkedMinecraftNames =
     new ConcurrentHashMap<>();
-  private final ConcurrentHashMap<GuildMemberKey, DiscordNameCacheEntry> discordNames =
+  private final ConcurrentHashMap<GuildMemberKey, DiscordProfileCacheEntry> discordProfiles =
     new ConcurrentHashMap<>();
   private Component notAllowedMessage;
   private Component verificationFailedMessage;
@@ -167,7 +167,7 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
     membershipCache.clear();
     pendingMinecraftNames.clear();
     linkedMinecraftNames.clear();
-    discordNames.clear();
+    discordProfiles.clear();
     DiscordSRV.api.unsubscribe(this);
   }
 
@@ -253,13 +253,16 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
     String processedMessage = event.getProcessedMessage();
     SchedulerUtil.runTaskAsynchronously(
       this,
-      () -> deliverWebhook(
-        channel,
-        webhookDisplayName(player, channel),
-        guildIconUrl(channel),
-        processedMessage,
-        Collections.emptyList()
-      )
+      () -> {
+        WebhookIdentity webhookIdentity = webhookIdentity(player, channel);
+        deliverWebhook(
+          channel,
+          webhookIdentity.name(),
+          webhookIdentity.avatarUrl(),
+          processedMessage,
+          Collections.emptyList()
+        );
+      }
     );
   }
 
@@ -272,10 +275,10 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
     }
     TextChannel channel = destinationChannel(event.getChannel());
     if (channel != null) {
-      event.setWebhookName(
-        webhookDisplayName(playerIdentity(event.getPlayer()), channel)
-      );
-      event.setWebhookAvatarUrl(guildIconUrl(channel));
+      PlayerIdentity player = playerIdentity(event.getPlayer());
+      WebhookIdentity webhookIdentity = webhookIdentity(player, channel);
+      event.setWebhookName(webhookIdentity.name());
+      event.setWebhookAvatarUrl(webhookIdentity.avatarUrl());
       String description = null;
       if (
         event.getTriggeringBukkitEvent() instanceof PlayerAdvancementDoneEvent advancementEvent
@@ -300,10 +303,10 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
     }
     TextChannel channel = destinationChannel(event.getChannel());
     if (channel != null) {
-      event.setWebhookName(
-        webhookDisplayName(playerIdentity(event.getPlayer()), channel)
-      );
-      event.setWebhookAvatarUrl(guildIconUrl(channel));
+      PlayerIdentity player = playerIdentity(event.getPlayer());
+      WebhookIdentity webhookIdentity = webhookIdentity(player, channel);
+      event.setWebhookName(webhookIdentity.name());
+      event.setWebhookAvatarUrl(webhookIdentity.avatarUrl());
       event.setDiscordMessage(
         new MessageBuilder(
           systemEmbed("死亡しました", 0xED4245).setDescription(
@@ -382,10 +385,11 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
       }
       return;
     }
+    WebhookIdentity webhookIdentity = webhookIdentity(player, channel);
     deliverWebhook(
       channel,
-      webhookDisplayName(player, channel),
-      guildIconUrl(channel),
+      webhookIdentity.name(),
+      webhookIdentity.avatarUrl(),
       "",
       Collections.singletonList(systemEmbed(title, color).build())
     );
@@ -470,35 +474,46 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
       .getDestinationTextChannelForGameChannelName(resolvedChannel);
   }
 
-  private String webhookDisplayName(
+  private WebhookIdentity webhookIdentity(
     PlayerIdentity player,
     TextChannel channel
   ) {
+    String minecraftAvatarUrl = minecraftAvatarUrl(player);
     String discordId = DiscordSRV.getPlugin()
       .getAccountLinkManager()
       .getDiscordId(player.uuid());
     if (discordId == null) {
-      return player.name();
+      return new WebhookIdentity(player.name(), minecraftAvatarUrl);
     }
-    String discordName = discordDisplayName(channel.getGuild(), discordId);
-    return discordName == null
-      ? player.name()
-      : webhookDisplayName(discordName, player.name());
+    DiscordProfileCacheEntry discordProfile = discordProfile(
+      channel.getGuild(),
+      discordId
+    );
+    if (discordProfile == null) {
+      return new WebhookIdentity(player.name(), minecraftAvatarUrl);
+    }
+    return new WebhookIdentity(
+      webhookDisplayName(discordProfile.name(), player.name()),
+      webhookAvatarUrl(discordProfile.avatarUrl(), minecraftAvatarUrl)
+    );
   }
 
-  private String discordDisplayName(Guild guild, String discordId) {
+  private DiscordProfileCacheEntry discordProfile(
+    Guild guild,
+    String discordId
+  ) {
     Member member = guild.getMemberById(discordId);
     if (member != null) {
-      return cacheDiscordName(member);
+      return cacheDiscordProfile(member);
     }
 
     GuildMemberKey cacheKey = new GuildMemberKey(guild.getId(), discordId);
-    DiscordNameCacheEntry cached = discordNames.get(cacheKey);
+    DiscordProfileCacheEntry cached = discordProfiles.get(cacheKey);
     if (cached != null && !cached.isExpired()) {
-      return cached.name();
+      return cached;
     }
     if (cached != null) {
-      discordNames.remove(cacheKey, cached);
+      discordProfiles.remove(cacheKey, cached);
     }
 
     try {
@@ -506,11 +521,11 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
         .retrieveMemberById(discordId)
         .timeout(requestTimeoutSeconds, TimeUnit.SECONDS)
         .complete();
-      return member == null ? null : cacheDiscordName(member);
+      return member == null ? null : cacheDiscordProfile(member);
     } catch (ErrorResponseException exception) {
       if (exception.getErrorResponse() != ErrorResponse.UNKNOWN_MEMBER) {
         getLogger().warning(
-          "Could not retrieve a Discord display name for guild " +
+          "Could not retrieve a Discord profile for guild " +
             guild.getId() +
             ": " +
             exception.getErrorResponse()
@@ -518,7 +533,7 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
       }
     } catch (RuntimeException exception) {
       getLogger().warning(
-        "Could not retrieve a Discord display name for guild " +
+        "Could not retrieve a Discord profile for guild " +
           guild.getId() +
           ": " +
           exception.getClass().getSimpleName()
@@ -527,21 +542,21 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
     return null;
   }
 
-  private String cacheDiscordName(Member member) {
-    String name = member.getEffectiveName();
-    discordNames.put(
-      new GuildMemberKey(member.getGuild().getId(), member.getId()),
-      new DiscordNameCacheEntry(
-        name,
-        System.nanoTime() + membershipCacheNanos
-      )
+  private DiscordProfileCacheEntry cacheDiscordProfile(Member member) {
+    DiscordProfileCacheEntry profile = new DiscordProfileCacheEntry(
+      member.getEffectiveName(),
+      member.getEffectiveAvatarUrl(),
+      System.nanoTime() + membershipCacheNanos
     );
-    return name;
+    discordProfiles.put(
+      new GuildMemberKey(member.getGuild().getId(), member.getId()),
+      profile
+    );
+    return profile;
   }
 
-  private String guildIconUrl(TextChannel channel) {
-    String iconUrl = channel.getGuild().getIconUrl();
-    return iconUrl == null ? "" : iconUrl;
+  private String minecraftAvatarUrl(PlayerIdentity player) {
+    return DiscordSRV.getAvatarUrl(player.name(), player.uuid());
   }
 
   private void loadAdvancementTranslations() {
@@ -847,7 +862,7 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
             .complete();
         }
         if (member != null) {
-          cacheDiscordName(member);
+          cacheDiscordProfile(member);
           cacheMembership(discordId, true);
           return;
         }
@@ -973,7 +988,9 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
   private void purgeExpiredCaches() {
     purgeExpiredPendingMinecraftNames();
     membershipCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
-    discordNames.entrySet().removeIf(entry -> entry.getValue().isExpired());
+    discordProfiles
+      .entrySet()
+      .removeIf(entry -> entry.getValue().isExpired());
   }
 
   private void purgeExpiredPendingMinecraftNames() {
@@ -1004,6 +1021,15 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
 
   static String webhookDisplayName(String discordName, String minecraftName) {
     return discordName + "（" + minecraftName + "）";
+  }
+
+  static String webhookAvatarUrl(
+    String discordAvatarUrl,
+    String minecraftAvatarUrl
+  ) {
+    return discordAvatarUrl == null || discordAvatarUrl.isBlank()
+      ? minecraftAvatarUrl
+      : discordAvatarUrl;
   }
 
   static boolean shouldSuppressSystemMessage(
@@ -1043,7 +1069,11 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
     }
   }
 
-  private record DiscordNameCacheEntry(String name, long expiresAtNanos) {
+  private record DiscordProfileCacheEntry(
+    String name,
+    String avatarUrl,
+    long expiresAtNanos
+  ) {
     private boolean isExpired() {
       return System.nanoTime() >= expiresAtNanos;
     }
@@ -1052,4 +1082,6 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
   private record GuildMemberKey(String guildId, String discordId) {}
 
   private record PlayerIdentity(UUID uuid, String name) {}
+
+  private record WebhookIdentity(String name, String avatarUrl) {}
 }

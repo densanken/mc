@@ -47,6 +47,22 @@ public final class DiscordGuildGateTest {
       DiscordGuildGate.webhookDisplayName("discord-name", "Steve"),
       "webhook names must use the documented order"
     );
+    assertEquals(
+      "https://cdn.discordapp.com/guild-avatar.png",
+      DiscordGuildGate.webhookAvatarUrl(
+        "https://cdn.discordapp.com/guild-avatar.png",
+        "https://crafthead.net/helm/minecraft-uuid"
+      ),
+      "Discord profile avatars must be preferred for linked users"
+    );
+    assertEquals(
+      "https://crafthead.net/helm/minecraft-uuid",
+      DiscordGuildGate.webhookAvatarUrl(
+        null,
+        "https://crafthead.net/helm/minecraft-uuid"
+      ),
+      "Minecraft avatars must be used when a Discord profile is unavailable"
+    );
 
     assertTrue(
       DiscordGuildGate.shouldSuppressSystemMessage(true, false),

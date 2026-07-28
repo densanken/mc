@@ -96,7 +96,8 @@ docker compose logs --tail=160 minecraft
 - Minecraft のチャット、参加、退出、死亡、進捗を、DiscordGuildGate の Webhook で Discord へ送信する
 - Discord から Minecraft へ転送するチャットには Discord ロールを表示しない
 - Minecraft から Discord へ送る Webhook は、連携済みなら `Discordニックネーム（Minecraft名）` を表示名にし、未連携なら Minecraft 名だけを表示名にする
-- Webhook のアイコンには、転送先チャンネルがある Discord サーバーのアイコンを使う
+- Webhook のアイコンには、転送先 Discord サーバーのプロフィールアイコンを優先して使う
+- Discord サーバーのプロフィールアイコンが未設定なら通常の Discord ユーザーアイコンを使い、Discord メンバー情報を取得できない場合は Minecraft プレイヤーのスキンを使う
 - Discord から Minecraft へ転送するチャットは、連携済みなら `Minecraft名 (Discordニックネーム)` を表示名にする
 - 入退室、死亡、進捗は timestamp 付きの Embed で送信し、進捗には日本語の説明も表示する
 - DiscordSRV 標準の Discord サーバー参加判定を有効にする
