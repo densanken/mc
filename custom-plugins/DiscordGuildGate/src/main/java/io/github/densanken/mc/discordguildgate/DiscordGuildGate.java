@@ -624,7 +624,7 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
     );
   }
 
-  @SlashCommand(path = "link", deferReply = true, deferEphemeral = true)
+  @SlashCommand(path = "link")
   public void handleLinkSlashCommand(SlashCommandEvent event) {
     if (
       !event.getName().equals("link") ||
@@ -633,20 +633,42 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
     ) {
       return;
     }
-    processLinkSlashCommand(event, event.getHook());
+    if (supportsInteractionHook(event)) {
+      event
+        .deferReply(true)
+        .queue(
+          hook -> editLinkResponse(hook, linkResponse(event)),
+          exception -> getLogger().warning(
+            "Could not defer the Discord link response: " +
+              exception.getClass().getSimpleName()
+          )
+        );
+      return;
+    }
+    // hook を使えない channel では 3 秒以内に応答する必要があるため、先に処理してから返信する
+    replyLinkResponse(event, linkResponse(event));
   }
 
-  private void processLinkSlashCommand(
-    SlashCommandEvent event,
-    InteractionHook hook
-  ) {
+  /**
+   * DiscordSRV 同梱の JDA は thread や voice channel の chat を channel として解決できない
+   * この channel では InteractionHook 経由の応答が Message を組み立てられずに失敗するため、
+   * deferred reply ではなく即時の reply で応答する
+   */
+  private boolean supportsInteractionHook(SlashCommandEvent event) {
+    try {
+      return event.getChannel() != null;
+    } catch (RuntimeException exception) {
+      return false;
+    }
+  }
+
+  private String linkResponse(SlashCommandEvent event) {
     OptionMapping codeOption = event.getOption("code");
     if (
       codeOption == null ||
       !codeOption.getAsString().matches(LINK_CODE_PATTERN)
     ) {
-      editLinkResponse(hook, "認証コードは4桁の数字で入力してください");
-      return;
+      return "認証コードは4桁の数字で入力してください";
     }
 
     String code = codeOption.getAsString();
@@ -690,7 +712,20 @@ public final class DiscordGuildGate extends JavaPlugin implements Listener, Slas
       }
       pendingMinecraftNames.remove(pendingMinecraftUuid);
     }
-    editLinkResponse(hook, response);
+    return response;
+  }
+
+  private void replyLinkResponse(SlashCommandEvent event, String response) {
+    event
+      .reply(response)
+      .setEphemeral(true)
+      .queue(
+        ignored -> {},
+        exception -> getLogger().warning(
+          "Could not send the Discord link response: " +
+            exception.getClass().getSimpleName()
+        )
+      );
   }
 
   private void editLinkResponse(InteractionHook hook, String response) {
