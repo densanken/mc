@@ -148,9 +148,9 @@ services:
       # loop は upstream どおり cleanup、prune、次回スケジュールへ進む
       POST_BACKUP_SCRIPT: '[ "$${ONE_SHOT:-true}" = false ] || exit "$$1"'
       INITIAL_DELAY: "0"
-      # 日数では削除せず、作成日時が新しい 100 世代を保持する
+      # 日数では削除せず、作成日時が新しい 50 世代を保持する
       PRUNE_BACKUPS_DAYS: "0"
-      PRUNE_BACKUPS_COUNT: "100"
+      PRUNE_BACKUPS_COUNT: "50"
       # プレイヤー不在時は backup を保留し、同一内容の tar を増やさない
       PAUSE_IF_NO_PLAYERS: "true"
       RCON_HOST: "minecraft"
