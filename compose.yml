@@ -10,7 +10,7 @@ x-container-logging: &container-logging
 
 services:
   minecraft:
-    image: itzg/minecraft-server:java25@sha256:dc7913a69c878594ff7b568862b2cd5541fac6e409d1dc86f0313b1ef7a4d9d4
+    image: itzg/minecraft-server:java25@sha256:77280d10744fd0482b7c510cd6b7ba7a5a609be5ef91cd593374e7df36de826b
     container_name: minecraft
     restart: unless-stopped
     stop_grace_period: 3m
@@ -97,7 +97,7 @@ services:
     logging: *container-logging
 
   public-readiness:
-    image: itzg/minecraft-server:java25@sha256:dc7913a69c878594ff7b568862b2cd5541fac6e409d1dc86f0313b1ef7a4d9d4
+    image: itzg/minecraft-server:java25@sha256:77280d10744fd0482b7c510cd6b7ba7a5a609be5ef91cd593374e7df36de826b
     restart: "no"
     depends_on:
       minecraft:
