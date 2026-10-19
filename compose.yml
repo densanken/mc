@@ -161,7 +161,7 @@ services:
       # secret を含む runtime file は backup tar から除外する
       # server.properties と .rcon-cli.* は Compose の環境変数から再生成される
       # DiscordSRV の設定 YAML は復元後に管理対象の設定を再反映する
-      EXCLUDES: "*.jar,cache,logs,*.tmp,plugins/CoreProtect/database.db*,server.properties,permissions.yml,.rcon-cli.env,.rcon-cli.yaml,plugins/DiscordSRV/config.yml,plugins/DiscordSRV/*.config.yml,plugins/DiscordSRV/.token"
+      EXCLUDES: "*.jar,cache,logs,dumps,*.tmp,plugins/CoreProtect/database.db*,server.properties,permissions.yml,.rcon-cli.env,.rcon-cli.yaml,plugins/DiscordSRV/config.yml,plugins/DiscordSRV/*.config.yml,plugins/DiscordSRV/.token"
     volumes:
       - ./minecraft:/data:ro
       - type: bind
