@@ -66,7 +66,7 @@ services:
     logging: *container-logging
 
   playit:
-    image: ghcr.io/playit-cloud/playit-agent@sha256:5b7748d3e8564f1cac3d3a295a23640136fbf774c76a9509bd262d16b324b06b
+    image: ghcr.io/playit-cloud/playit-agent@sha256:fa2a6c58815582371fe046f0bd8bea6a39a8684711594a9d2dbe03e44df1fa2c
     container_name: playit
     # service 名を省略した compose up では外部公開しない
     profiles: ["public"]
