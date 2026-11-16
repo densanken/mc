@@ -126,7 +126,7 @@ services:
     logging: *container-logging
 
   backups:
-    image: itzg/mc-backup@sha256:c0bbe85632a5c0fa8df51d030b5a0c5c940bec4c0fcc810f5e25ccae0150d314
+    image: itzg/mc-backup@sha256:784e6da21d6c7b2f3a214c126f18d3186e2eb1353579b3a27a21a23e796bfacc
     container_name: minecraft-backups
     # 意図して停止するまで、Docker daemon の再起動後も定期バックアップを復旧する
     restart: unless-stopped
